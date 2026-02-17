@@ -1,0 +1,1226 @@
+<!doctype html>
+<html lang="id" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SeaPhonk — Underwater Drone Monitor</title>
+    <meta
+      name="description"
+      content="Real-time underwater drone water quality monitoring dashboard — pH, Turbidity, Temperature"
+    />
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Space Grotesk", "sans-serif"],
+            },
+            colors: {
+              dark: {
+                900: "#0a0d12",
+                800: "#111620",
+                700: "#1a2030",
+              },
+              neon: {
+                cyan: "#00f0ff",
+                purple: "#bc13fe",
+                green: "#0aff68",
+                orange: "#ff9900",
+                pink: "#ff2d7b",
+              },
+              ocean: {
+                50: "#ecfeff",
+                100: "#cffafe",
+                200: "#a5f3fc",
+                300: "#67e8f9",
+                400: "#22d3ee",
+                500: "#06b6d4",
+                600: "#0891b2",
+                700: "#0e7490",
+                800: "#155e75",
+                900: "#164e63",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        --bg-color: #f0f4f8;
+        --card-glass: rgba(255, 255, 255, 0.7);
+        --card-border: rgba(0, 0, 0, 0.06);
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+      }
+
+      .dark {
+        --bg-color: #0a0d12;
+        --card-glass: rgba(17, 22, 32, 0.7);
+        --card-border: rgba(255, 255, 255, 0.06);
+        --text-primary: #e2e8f0;
+        --text-secondary: #94a3b8;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+        transition:
+          background-color 0.3s ease,
+          color 0.3s ease;
+      }
+
+      /* Ambient underwater background */
+      body.dark {
+        background-image:
+          radial-gradient(
+            circle at 15% 30%,
+            rgba(0, 240, 255, 0.04) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 85% 70%,
+            rgba(6, 182, 212, 0.04) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 50% 90%,
+            rgba(188, 19, 254, 0.03) 0%,
+            transparent 40%
+          );
+      }
+      body:not(.dark) {
+        background-image:
+          radial-gradient(
+            circle at 15% 30%,
+            rgba(6, 182, 212, 0.06) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 85% 70%,
+            rgba(14, 116, 144, 0.05) 0%,
+            transparent 50%
+          );
+      }
+
+      /* Bento Grid */
+      .bento-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.25rem;
+      }
+
+      /* Glass Card */
+      .glass-card {
+        background: var(--card-glass);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--card-border);
+        border-radius: 20px;
+        padding: 1.5rem;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      }
+
+      .dark .glass-card:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+        transform: translateY(-3px);
+      }
+      .glass-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.12);
+      }
+
+      /* Glow effects for metric cards */
+      .glow-cyan::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          rgba(0, 240, 255, 0.06) 0%,
+          transparent 60%
+        );
+        pointer-events: none;
+      }
+      .glow-amber::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          rgba(255, 153, 0, 0.06) 0%,
+          transparent 60%
+        );
+        pointer-events: none;
+      }
+      .glow-rose::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          rgba(255, 45, 123, 0.06) 0%,
+          transparent 60%
+        );
+        pointer-events: none;
+      }
+      .glow-green::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(
+          circle,
+          rgba(10, 255, 104, 0.06) 0%,
+          transparent 60%
+        );
+        pointer-events: none;
+      }
+
+      /* Tech corner accent */
+      .tech-corner::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 18px;
+        height: 18px;
+        border-right: 2px solid var(--text-secondary);
+        border-bottom: 2px solid var(--text-secondary);
+        opacity: 0.2;
+        border-radius: 0 0 8px 0;
+      }
+
+      /* Animated ring */
+      @keyframes pulse-ring {
+        0% {
+          transform: scale(0.8);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1.6);
+          opacity: 0;
+        }
+      }
+      .pulse-ring {
+        animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      /* Water bubble animation */
+      @keyframes float-up {
+        0% {
+          transform: translateY(0) scale(1);
+          opacity: 0.6;
+        }
+        100% {
+          transform: translateY(-20px) scale(0.7);
+          opacity: 0;
+        }
+      }
+      .bubble {
+        animation: float-up 3s ease-in infinite;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
+        .bento-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .col-span-3 {
+          grid-column: span 2 !important;
+        }
+      }
+      @media (max-width: 640px) {
+        .bento-grid {
+          grid-template-columns: 1fr;
+        }
+        .col-span-1,
+        .col-span-2,
+        .col-span-3,
+        .row-span-2 {
+          grid-column: span 1 !important;
+          grid-row: span 1 !important;
+        }
+      }
+
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      /* Styled scrollbar for log container */
+      .log-scroll::-webkit-scrollbar {
+        width: 4px;
+      }
+      .log-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .log-scroll::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.2);
+        border-radius: 4px;
+      }
+      .log-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.4);
+      }
+      .dark .log-scroll::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.15);
+      }
+      .dark .log-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.3);
+      }
+      .log-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+      }
+
+      /* Status badge */
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen p-4 md:p-6 lg:p-8 transition-colors duration-300">
+    <!-- ═══════════════ TOP BAR ═══════════════ -->
+    <header class="flex justify-between items-center mb-8 px-2">
+      <div class="flex items-center gap-3">
+        <div
+          class="w-11 h-11 rounded-xl flex items-center justify-center border transition-colors dark:bg-ocean-500/10 dark:border-ocean-500/20 bg-ocean-100 border-ocean-200"
+        >
+          <i
+            class="fa-solid fa-water dark:text-neon-cyan text-ocean-600 text-lg"
+          ></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight">SEAPHONK</h1>
+          <div class="flex items-center gap-2 text-xs opacity-70">
+            <span
+              id="status-dot"
+              class="w-2 h-2 bg-green-500 rounded-full animate-pulse"
+            ></span>
+            <span id="status-text">DRONE ONLINE</span> •
+            <span id="clock" class="font-mono">00:00:00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 items-center">
+        <!-- Connection Status -->
+        <div
+          id="connection-badge"
+          class="status-badge dark:bg-green-500/10 dark:text-green-400 bg-green-100 text-green-700 border dark:border-green-500/20 border-green-200 hidden md:inline-flex"
+        >
+          <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+          Connected
+        </div>
+
+        <!-- Theme Toggle -->
+        <button
+          id="btn-theme"
+          onclick="toggleTheme()"
+          class="glass-card !p-3 !rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          title="Toggle Theme"
+        >
+          <i class="fa-solid fa-sun text-orange-400 dark:hidden"></i>
+          <i class="fa-solid fa-moon text-neon-cyan hidden dark:block"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══════════════ BENTO GRID ═══════════════ -->
+    <div class="bento-grid max-w-7xl mx-auto">
+      <!-- ────── 1. LIVE CHART (3-col span) ────── -->
+      <div class="glass-card col-span-3 row-span-2 flex flex-col min-h-[420px]">
+        <div class="flex justify-between items-center mb-4">
+          <h3
+            class="opacity-60 text-sm uppercase flex items-center gap-2 tracking-wider"
+          >
+            <span
+              class="w-2 h-2 rounded-full dark:bg-neon-cyan bg-ocean-500 animate-pulse"
+              id="live-indicator"
+            ></span>
+            <span id="chart-title">Live Sensor Telemetry</span>
+          </h3>
+          <div class="flex bg-black/5 dark:bg-white/5 p-1 rounded-lg">
+            <button
+              onclick="setMode('minute')"
+              id="btn-minute"
+              class="px-4 py-1.5 text-xs rounded-md transition-all font-medium dark:bg-neon-cyan dark:text-black bg-ocean-500 text-white shadow-lg"
+            >
+              Live
+            </button>
+            <button
+              onclick="setMode('hour')"
+              id="btn-hour"
+              class="px-4 py-1.5 text-xs rounded-md transition-all font-medium opacity-60 hover:opacity-100"
+            >
+              Hourly
+            </button>
+            <button
+              onclick="setMode('day')"
+              id="btn-day"
+              class="px-4 py-1.5 text-xs rounded-md transition-all font-medium opacity-60 hover:opacity-100"
+            >
+              Daily
+            </button>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex gap-5 mb-3 text-xs">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-1.5 rounded-full bg-cyan-400"></span>
+            <span class="opacity-60">pH</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-1.5 rounded-full bg-amber-400"></span>
+            <span class="opacity-60">Turbidity (NTU)</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-1.5 rounded-full bg-rose-400"></span>
+            <span class="opacity-60">Suhu (°C)</span>
+          </div>
+        </div>
+
+        <div class="relative flex-grow w-full">
+          <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ────── 2. RECENT LOGS (1-col, 2-row span) ────── -->
+      <div
+        class="glass-card col-span-1 row-span-2 flex flex-col min-h-[420px] max-h-[420px]"
+      >
+        <h3
+          class="opacity-60 text-sm uppercase mb-3 tracking-wider border-b dark:border-white/5 border-black/5 pb-2 flex items-center gap-2"
+        >
+          <i class="fa-solid fa-terminal text-[10px]"></i>
+          Drone Logs
+        </h3>
+        <div
+          id="log-container"
+          class="space-y-3 font-mono text-xs overflow-y-auto log-scroll flex-grow p-1"
+          style="max-height: 340px"
+        >
+          <!-- Logs will be populated by JS -->
+          <div class="text-center opacity-40 py-8">
+            <i class="fa-solid fa-satellite-dish text-2xl mb-2 block"></i>
+            Waiting for data...
+          </div>
+        </div>
+      </div>
+
+      <!-- ────── 3. pH SENSOR CARD ────── -->
+      <div
+        id="card-ph"
+        class="glass-card col-span-1 flex flex-col items-center justify-center text-center tech-corner glow-cyan min-h-[220px] group"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl dark:bg-cyan-500/10 bg-cyan-100 flex items-center justify-center dark:text-cyan-400 text-cyan-600 border dark:border-cyan-500/20 border-cyan-200 transition-all mb-4 group-hover:scale-110 group-hover:rotate-3 duration-300"
+        >
+          <i class="fa-solid fa-flask text-xl"></i>
+        </div>
+        <h3 class="opacity-50 text-xs uppercase tracking-widest mb-1">
+          pH Level
+        </h3>
+        <div
+          id="val-ph"
+          class="text-5xl font-bold dark:text-white text-slate-800 tracking-tight transition-all"
+        >
+          --
+        </div>
+        <div
+          id="status-ph"
+          class="text-xs font-semibold mt-2 px-3 py-1 rounded-full dark:bg-cyan-500/10 dark:text-cyan-400 bg-cyan-100 text-cyan-700 transition-all"
+        >
+          Menunggu data...
+        </div>
+      </div>
+
+      <!-- ────── 4. TURBIDITY SENSOR CARD ────── -->
+      <div
+        id="card-turbidity"
+        class="glass-card col-span-1 flex flex-col items-center justify-center text-center tech-corner glow-amber min-h-[220px] group"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl dark:bg-amber-500/10 bg-amber-100 flex items-center justify-center dark:text-amber-400 text-amber-600 border dark:border-amber-500/20 border-amber-200 transition-all mb-4 group-hover:scale-110 group-hover:rotate-3 duration-300"
+        >
+          <i class="fa-solid fa-eye-dropper text-xl"></i>
+        </div>
+        <h3 class="opacity-50 text-xs uppercase tracking-widest mb-1">
+          Turbidity
+        </h3>
+        <div class="flex items-baseline justify-center gap-1">
+          <span
+            id="val-turbidity"
+            class="text-5xl font-bold dark:text-white text-slate-800 tracking-tight transition-all"
+            >--</span
+          >
+          <span class="text-lg opacity-40 font-medium">NTU</span>
+        </div>
+        <div
+          id="status-turbidity"
+          class="text-xs font-semibold mt-2 px-3 py-1 rounded-full dark:bg-amber-500/10 dark:text-amber-400 bg-amber-100 text-amber-700 transition-all"
+        >
+          Menunggu data...
+        </div>
+      </div>
+
+      <!-- ────── 5. TEMPERATURE SENSOR CARD ────── -->
+      <div
+        id="card-suhu"
+        class="glass-card col-span-1 flex flex-col items-center justify-center text-center tech-corner glow-rose min-h-[220px] group"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl dark:bg-rose-500/10 bg-rose-100 flex items-center justify-center dark:text-rose-400 text-rose-600 border dark:border-rose-500/20 border-rose-200 transition-all mb-4 group-hover:scale-110 group-hover:rotate-3 duration-300"
+        >
+          <i class="fa-solid fa-temperature-half text-xl"></i>
+        </div>
+        <h3 class="opacity-50 text-xs uppercase tracking-widest mb-1">
+          Suhu Air
+        </h3>
+        <div class="flex items-baseline justify-center gap-1">
+          <span
+            id="val-suhu"
+            class="text-5xl font-bold dark:text-white text-slate-800 tracking-tight transition-all"
+            >--</span
+          >
+          <span class="text-lg opacity-40 font-medium">°C</span>
+        </div>
+        <div
+          id="status-suhu"
+          class="text-xs font-semibold mt-2 px-3 py-1 rounded-full dark:bg-rose-500/10 dark:text-rose-400 bg-rose-100 text-rose-700 transition-all"
+        >
+          Menunggu data...
+        </div>
+      </div>
+
+      <!-- ────── 6. DRONE STATUS CARD ────── -->
+      <div
+        id="card-drone"
+        class="glass-card col-span-1 flex flex-col items-center justify-center text-center tech-corner glow-green min-h-[220px] group"
+      >
+        <div
+          class="w-14 h-14 rounded-2xl dark:bg-green-500/10 bg-green-100 flex items-center justify-center dark:text-green-400 text-green-600 border dark:border-green-500/20 border-green-200 transition-all mb-4 group-hover:scale-110 group-hover:rotate-3 duration-300"
+        >
+          <i class="fa-solid fa-satellite text-xl"></i>
+        </div>
+        <h3 class="opacity-50 text-xs uppercase tracking-widest mb-1">
+          Drone Status
+        </h3>
+        <div
+          id="val-drone-status"
+          class="text-3xl font-bold dark:text-green-400 text-green-600 tracking-tight transition-all"
+        >
+          ACTIVE
+        </div>
+        <div class="flex items-center gap-3 mt-3">
+          <div class="text-center">
+            <div
+              id="val-uptime"
+              class="text-sm font-bold dark:text-white text-slate-700"
+            >
+              0s
+            </div>
+            <div class="text-[10px] opacity-40 uppercase">Uptime</div>
+          </div>
+          <div class="w-px h-6 dark:bg-white/10 bg-black/10"></div>
+          <div class="text-center">
+            <div
+              id="val-readings"
+              class="text-sm font-bold dark:text-white text-slate-700"
+            >
+              0
+            </div>
+            <div class="text-[10px] opacity-40 uppercase">Readings</div>
+          </div>
+          <div class="w-px h-6 dark:bg-white/10 bg-black/10"></div>
+          <div class="text-center">
+            <div
+              id="val-interval"
+              class="text-sm font-bold dark:text-white text-slate-700"
+            >
+              5s
+            </div>
+            <div class="text-[10px] opacity-40 uppercase">Interval</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ FOOTER ═══════════════ -->
+    <footer class="max-w-7xl mx-auto mt-6 px-2 text-center">
+      <p class="text-xs opacity-30">
+        SeaPhonk Underwater Drone Monitoring System • ESP32 + Wokwi Simulator
+      </p>
+    </footer>
+
+    <!-- ═══════════════ JAVASCRIPT ═══════════════ -->
+    <script>
+      // ──────────────────────────────────────────
+      // 🕐 CLOCK
+      // ──────────────────────────────────────────
+      function updateTime() {
+        const now = new Date();
+        document.getElementById("clock").innerText = now.toLocaleTimeString(
+          "en-US",
+          { hour12: false },
+        );
+      }
+      setInterval(updateTime, 1000);
+      updateTime();
+
+      // ──────────────────────────────────────────
+      // 🌙 THEME TOGGLE
+      // ──────────────────────────────────────────
+      function toggleTheme() {
+        document.documentElement.classList.toggle("dark");
+        setMode(currentMode); // Re-render chart with correct colors
+      }
+
+      // ──────────────────────────────────────────
+      // 📊 CHART SETUP
+      // ──────────────────────────────────────────
+      let chartMain;
+      let currentMode = "minute";
+      const ctxMain = document.getElementById("mainChart").getContext("2d");
+      const MAX_CHART_POINTS = 20;
+
+      // Data histories for live chart
+      let phHistory = Array(MAX_CHART_POINTS).fill(null);
+      let turbidityHistory = Array(MAX_CHART_POINTS).fill(null);
+      let suhuHistory = Array(MAX_CHART_POINTS).fill(null);
+      let labelHistory = Array(MAX_CHART_POINTS).fill("");
+
+      // Counters
+      let totalReadings = 0;
+      let startTime = Date.now();
+
+      const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "rgba(10, 13, 18, 0.9)",
+            titleColor: "#e2e8f0",
+            bodyColor: "#94a3b8",
+            borderColor: "rgba(255,255,255,0.1)",
+            borderWidth: 1,
+            cornerRadius: 10,
+            padding: 12,
+            displayColors: true,
+            callbacks: {
+              label: function (context) {
+                let label = context.dataset.label || "";
+                let value = context.parsed.y;
+                if (label === "pH") return ` pH: ${value}`;
+                if (label === "Turbidity") return ` Turbidity: ${value} NTU`;
+                if (label === "Suhu") return ` Suhu: ${value} °C`;
+                return ` ${label}: ${value}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            display: true,
+            grid: { display: false },
+            ticks: { color: "#64748b", font: { size: 10 } },
+          },
+          y: {
+            display: true,
+            grid: { color: "rgba(148, 163, 184, 0.08)" },
+            ticks: { color: "#64748b", font: { size: 10 } },
+          },
+        },
+        elements: {
+          point: { radius: 2, hoverRadius: 6, hitRadius: 10 },
+          line: { tension: 0.4, borderWidth: 2.5 },
+        },
+        interaction: { mode: "index", intersect: false },
+      };
+
+      // ──────────────────────────────────────────
+      // MODE SWITCHER
+      // ──────────────────────────────────────────
+      function setMode(mode) {
+        currentMode = mode;
+
+        // Update button states
+        document
+          .querySelectorAll("#btn-minute, #btn-hour, #btn-day")
+          .forEach((btn) => {
+            btn.className =
+              "px-4 py-1.5 text-xs rounded-md transition-all font-medium opacity-60 hover:opacity-100";
+          });
+
+        const isDark = document.documentElement.classList.contains("dark");
+        const activeClass = isDark
+          ? "px-4 py-1.5 text-xs rounded-md transition-all font-medium bg-neon-cyan text-black shadow-lg opacity-100"
+          : "px-4 py-1.5 text-xs rounded-md transition-all font-medium bg-ocean-500 text-white shadow-lg opacity-100";
+        document.getElementById(`btn-${mode}`).className = activeClass;
+
+        // Indicator
+        const indicator = document.getElementById("live-indicator");
+        const title = document.getElementById("chart-title");
+
+        if (mode === "minute") {
+          indicator.className =
+            "w-2 h-2 rounded-full animate-pulse bg-ocean-500 dark:bg-neon-cyan";
+          title.innerText = "Live Sensor Telemetry (Real-time)";
+        } else {
+          indicator.className = "w-2 h-2 rounded-full bg-gray-400";
+          title.innerText =
+            mode === "hour" ? "Hourly Sensor Trend" : "Daily Sensor Trend";
+        }
+
+        renderChart();
+      }
+
+      // ──────────────────────────────────────────
+      // HISTORY DATA (for hour/day modes)
+      // ──────────────────────────────────────────
+      // Menggunakan data history yang sama dari API.
+      // Pada mode hourly/daily, data tetap diambil dari
+      // history yang sudah di-fetch, ditampilkan apa adanya.
+      function getHistoryChartData(mode) {
+        // Filter out null values for display
+        const validPH = phHistory.filter((v) => v !== null);
+        const validTurb = turbidityHistory.filter((v) => v !== null);
+        const validSuhu = suhuHistory.filter((v) => v !== null);
+        const validLabels = labelHistory.filter((v) => v !== "");
+
+        if (validPH.length === 0) {
+          // Belum ada data dari API, tampilkan empty
+          return {
+            labels: ["No data"],
+            ph: [null],
+            turbidity: [null],
+            suhu: [null],
+          };
+        }
+
+        return {
+          labels: validLabels,
+          ph: validPH,
+          turbidity: validTurb,
+          suhu: validSuhu,
+        };
+      }
+
+      // ──────────────────────────────────────────
+      // RENDER CHART
+      // ──────────────────────────────────────────
+      function renderChart() {
+        if (chartMain) chartMain.destroy();
+
+        const isDark = document.documentElement.classList.contains("dark");
+
+        // Dataset colors
+        const colors = {
+          ph: isDark ? "#22d3ee" : "#0891b2",
+          turbidity: isDark ? "#fbbf24" : "#d97706",
+          suhu: isDark ? "#fb7185" : "#e11d48",
+        };
+
+        // Gradient fills
+        const gradPH = ctxMain.createLinearGradient(0, 0, 0, 400);
+        gradPH.addColorStop(
+          0,
+          isDark ? "rgba(34, 211, 238, 0.15)" : "rgba(8, 145, 178, 0.15)",
+        );
+        gradPH.addColorStop(1, "transparent");
+
+        const gradTurb = ctxMain.createLinearGradient(0, 0, 0, 400);
+        gradTurb.addColorStop(
+          0,
+          isDark ? "rgba(251, 191, 36, 0.10)" : "rgba(217, 119, 6, 0.10)",
+        );
+        gradTurb.addColorStop(1, "transparent");
+
+        const gradSuhu = ctxMain.createLinearGradient(0, 0, 0, 400);
+        gradSuhu.addColorStop(
+          0,
+          isDark ? "rgba(251, 113, 133, 0.10)" : "rgba(225, 29, 72, 0.10)",
+        );
+        gradSuhu.addColorStop(1, "transparent");
+
+        let labels, phData, turbData, suhuData;
+
+        if (currentMode === "minute") {
+          labels = labelHistory;
+          phData = phHistory;
+          turbData = turbidityHistory.map((v) => (v !== null ? v / 100 : null)); // Scale down for visual
+          suhuData = suhuHistory;
+        } else {
+          const histData = getHistoryChartData(currentMode);
+          labels = histData.labels;
+          phData = histData.ph;
+          turbData = histData.turbidity.map((v) =>
+            v !== null ? v / 100 : null,
+          ); // Scale for visual
+          suhuData = histData.suhu;
+        }
+
+        chartMain = new Chart(ctxMain, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "pH",
+                data: phData,
+                borderColor: colors.ph,
+                backgroundColor: gradPH,
+                fill: true,
+                yAxisID: "y",
+              },
+              {
+                label: "Turbidity",
+                data: turbData,
+                borderColor: colors.turbidity,
+                backgroundColor: gradTurb,
+                fill: true,
+                yAxisID: "y",
+              },
+              {
+                label: "Suhu",
+                data: suhuData,
+                borderColor: colors.suhu,
+                backgroundColor: gradSuhu,
+                fill: true,
+                yAxisID: "y",
+              },
+            ],
+          },
+          options: {
+            ...commonOptions,
+            scales: {
+              x: {
+                display: true,
+                grid: { display: false },
+                ticks: {
+                  color: isDark ? "#475569" : "#94a3b8",
+                  font: { size: 10 },
+                },
+              },
+              y: {
+                display: true,
+                grid: {
+                  color: isDark
+                    ? "rgba(148, 163, 184, 0.06)"
+                    : "rgba(0, 0, 0, 0.04)",
+                },
+                ticks: {
+                  color: isDark ? "#475569" : "#94a3b8",
+                  font: { size: 10 },
+                },
+              },
+            },
+            plugins: {
+              ...commonOptions.plugins,
+              tooltip: {
+                ...commonOptions.plugins.tooltip,
+                callbacks: {
+                  label: function (context) {
+                    let label = context.dataset.label || "";
+                    let value = context.parsed.y;
+                    if (label === "pH")
+                      return ` pH: ${value?.toFixed(2) ?? "--"}`;
+                    if (label === "Turbidity")
+                      return ` Turbidity: ${(value * 100)?.toFixed(1) ?? "--"} NTU`;
+                    if (label === "Suhu")
+                      return ` Suhu: ${value?.toFixed(1) ?? "--"} °C`;
+                    return ` ${label}: ${value}`;
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
+      // ──────────────────────────────────────────
+      // 🏷️ STATUS HELPERS
+      // ──────────────────────────────────────────
+      function getPhStatus(ph) {
+        if (ph < 4.0) return { text: "Sangat Asam ⚠️", color: "red" };
+        if (ph < 6.5) return { text: "Asam", color: "amber" };
+        if (ph <= 8.5) return { text: "Normal ✅", color: "cyan" };
+        if (ph <= 11.0) return { text: "Basa", color: "amber" };
+        return { text: "Sangat Basa ⚠️", color: "red" };
+      }
+
+      function getTurbidityStatus(ntu) {
+        if (ntu < 5) return { text: "Jernih ✅", color: "cyan" };
+        if (ntu < 50) return { text: "Sedikit Keruh", color: "green" };
+        if (ntu < 200) return { text: "Keruh", color: "amber" };
+        if (ntu < 500) return { text: "Sangat Keruh ⚠️", color: "orange" };
+        return { text: "Ekstrem Keruh 🚨", color: "red" };
+      }
+
+      function getSuhuStatus(suhu) {
+        if (suhu < 0) return { text: "Beku ❄️", color: "blue" };
+        if (suhu < 15) return { text: "Dingin", color: "blue" };
+        if (suhu < 25) return { text: "Sejuk ✅", color: "cyan" };
+        if (suhu < 30) return { text: "Hangat ✅", color: "green" };
+        if (suhu < 40) return { text: "Panas", color: "amber" };
+        return { text: "Sangat Panas ⚠️", color: "red" };
+      }
+
+      function applyStatusBadge(elementId, statusObj) {
+        const el = document.getElementById(elementId);
+        const colorMap = {
+          cyan: "dark:bg-cyan-500/10 dark:text-cyan-400 bg-cyan-100 text-cyan-700",
+          green:
+            "dark:bg-green-500/10 dark:text-green-400 bg-green-100 text-green-700",
+          amber:
+            "dark:bg-amber-500/10 dark:text-amber-400 bg-amber-100 text-amber-700",
+          orange:
+            "dark:bg-orange-500/10 dark:text-orange-400 bg-orange-100 text-orange-700",
+          red: "dark:bg-red-500/10 dark:text-red-400 bg-red-100 text-red-700",
+          blue: "dark:bg-blue-500/10 dark:text-blue-400 bg-blue-100 text-blue-700",
+        };
+        el.className = `text-xs font-semibold mt-2 px-3 py-1 rounded-full transition-all ${colorMap[statusObj.color] || colorMap.cyan}`;
+        el.innerText = statusObj.text;
+      }
+
+      // ──────────────────────────────────────────
+      // 📝 LOG SYSTEM
+      // ──────────────────────────────────────────
+      const logContainer = document.getElementById("log-container");
+      let logEntries = [];
+      const MAX_LOGS = 30;
+
+      function addLog(type, message) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString("en-US", { hour12: false });
+
+        const typeConfig = {
+          INFO: { class: "dark:text-cyan-400 text-cyan-600", label: "[INFO]" },
+          SUCCESS: { class: "text-green-500", label: "[OK]" },
+          WARN: {
+            class: "dark:text-amber-400 text-amber-600",
+            label: "[WARN]",
+          },
+          ERROR: { class: "dark:text-red-400 text-red-600", label: "[ERR]" },
+          DATA: {
+            class: "dark:text-purple-400 text-purple-600",
+            label: "[DATA]",
+          },
+        };
+
+        const config = typeConfig[type] || typeConfig.INFO;
+
+        logEntries.unshift({ time: timeStr, type, message, config });
+        if (logEntries.length > MAX_LOGS) logEntries.pop();
+
+        // Render
+        logContainer.innerHTML = logEntries
+          .map(
+            (entry, i) => `
+          <div class="flex flex-col gap-1 opacity-80 ${i > 0 ? "border-t dark:border-white/5 border-black/5 pt-2" : ""}">
+            <div class="flex justify-between">
+              <span class="${entry.config.class} font-bold">${entry.config.label}</span>
+              <span class="opacity-40 text-[10px]">${entry.time}</span>
+            </div>
+            <span class="leading-relaxed">${entry.message}</span>
+          </div>
+        `,
+          )
+          .join("");
+
+        // Scroll ke atas agar log terbaru selalu terlihat
+        logContainer.scrollTop = 0;
+      }
+
+      // ──────────────────────────────────────────
+      // 🌐 API - Fetch Data dari Wokwi via Server
+      // ──────────────────────────────────────────
+      // Data sensor dikirim oleh ESP32 (Wokwi) ke api.php
+      // Dashboard mengambil data terbaru dari API
+      // ──────────────────────────────────────────
+
+      const API_URL = "https://seaphonk.underwaterdrone.my.id/api.php";
+      let lastDataId = null; // Track ID terakhir agar tidak duplikat
+      let consecutiveErrors = 0; // Hitung error berturut-turut
+      const MAX_ERRORS_OFFLINE = 3; // Setelah 3x error → status offline
+
+      // ── Fetch data terbaru dari API ──
+      async function fetchLatestData() {
+        try {
+          const response = await fetch(
+            `${API_URL}?get_latest=true&_t=${Date.now()}`,
+          );
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const data = await response.json();
+          consecutiveErrors = 0; // Reset error counter
+
+          // Cek apakah data kosong (belum ada data dari ESP32)
+          if (data.status === "empty") {
+            updateConnectionBadge("waiting");
+            addLog("INFO", "Menunggu data dari drone ESP32 (Wokwi)...");
+            return;
+          }
+
+          // Cek apakah data baru (ID berbeda)
+          if (data.id && data.id === lastDataId) {
+            // Data belum berubah, skip update
+            return;
+          }
+          lastDataId = data.id;
+
+          // Parse data dari API
+          // Mapping: kualitas_air=pH, tahan=Turbidity(NTU), udara=Suhu(°C)
+          const ph = parseFloat(data.kualitas_air) || 0;
+          const turbidity = parseFloat(data.tahan) || 0;
+          const suhu = parseFloat(data.udara) || 0;
+
+          totalReadings++;
+
+          // ── Update metric cards ──
+          document.getElementById("val-ph").innerText = ph.toFixed(2);
+          applyStatusBadge("status-ph", getPhStatus(ph));
+
+          document.getElementById("val-turbidity").innerText =
+            turbidity.toFixed(0);
+          applyStatusBadge("status-turbidity", getTurbidityStatus(turbidity));
+
+          document.getElementById("val-suhu").innerText = suhu.toFixed(1);
+          applyStatusBadge("status-suhu", getSuhuStatus(suhu));
+
+          // ── Update drone status ──
+          document.getElementById("val-drone-status").innerText = "ACTIVE";
+          document.getElementById("val-drone-status").className =
+            "text-3xl font-bold dark:text-green-400 text-green-600 tracking-tight transition-all";
+          document.getElementById("val-readings").innerText = totalReadings;
+
+          // ── Update connection badge ──
+          updateConnectionBadge("connected");
+
+          // ── Update live chart ──
+          if (currentMode === "minute" && chartMain) {
+            const timeLabel = data.timestamp
+              ? new Date(data.timestamp).toLocaleTimeString("en-US", {
+                  hour12: false,
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })
+              : new Date().toLocaleTimeString("en-US", {
+                  hour12: false,
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+
+            phHistory.shift();
+            phHistory.push(ph);
+            turbidityHistory.shift();
+            turbidityHistory.push(turbidity);
+            suhuHistory.shift();
+            suhuHistory.push(suhu);
+            labelHistory.shift();
+            labelHistory.push(timeLabel);
+
+            // Scale turbidity for chart (/100 agar skala sejajar pH & Suhu)
+            chartMain.data.datasets[0].data = [...phHistory];
+            chartMain.data.datasets[1].data = turbidityHistory.map((v) =>
+              v !== null ? v / 100 : null,
+            );
+            chartMain.data.datasets[2].data = [...suhuHistory];
+            chartMain.data.labels = [...labelHistory];
+            chartMain.update("none");
+          }
+
+          // ── Add log entry ──
+          addLog(
+            "DATA",
+            `pH: <b>${ph.toFixed(2)}</b> • Turb: <b>${turbidity.toFixed(0)} NTU</b> • Suhu: <b>${suhu.toFixed(1)}°C</b>`,
+          );
+        } catch (error) {
+          consecutiveErrors++;
+          console.error("Fetch error:", error);
+
+          if (consecutiveErrors >= MAX_ERRORS_OFFLINE) {
+            updateConnectionBadge("offline");
+            document.getElementById("val-drone-status").innerText = "OFFLINE";
+            document.getElementById("val-drone-status").className =
+              "text-3xl font-bold dark:text-red-400 text-red-600 tracking-tight transition-all";
+          }
+
+          if (consecutiveErrors === 1 || consecutiveErrors % 5 === 0) {
+            addLog("ERROR", `Gagal mengambil data: ${error.message}`);
+          }
+        }
+      }
+
+      // ── Fetch history data dari API (untuk chart) ──
+      async function fetchHistoryData() {
+        try {
+          const response = await fetch(
+            `${API_URL}?get_history=true&limit=20&_t=${Date.now()}`,
+          );
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const result = await response.json();
+
+          if (
+            result.status === "success" &&
+            result.data &&
+            result.data.length > 0
+          ) {
+            // Reset histories
+            phHistory = Array(MAX_CHART_POINTS).fill(null);
+            turbidityHistory = Array(MAX_CHART_POINTS).fill(null);
+            suhuHistory = Array(MAX_CHART_POINTS).fill(null);
+            labelHistory = Array(MAX_CHART_POINTS).fill("");
+
+            // Fill dari data API (data sudah diurutkan oldest first)
+            const startIdx = Math.max(0, MAX_CHART_POINTS - result.data.length);
+            result.data.forEach((row, i) => {
+              const idx = startIdx + i;
+              if (idx < MAX_CHART_POINTS) {
+                phHistory[idx] = parseFloat(row.kualitas_air) || null;
+                turbidityHistory[idx] = parseFloat(row.tahan) || null;
+                suhuHistory[idx] = parseFloat(row.udara) || null;
+                labelHistory[idx] = row.timestamp
+                  ? new Date(row.timestamp).toLocaleTimeString("en-US", {
+                      hour12: false,
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })
+                  : "";
+              }
+            });
+
+            renderChart();
+            addLog(
+              "SUCCESS",
+              `Loaded ${result.data.length} data points dari server`,
+            );
+          }
+        } catch (error) {
+          console.error("History fetch error:", error);
+          addLog("WARN", "Tidak bisa memuat data history dari server");
+        }
+      }
+
+      // ── Update connection badge UI ──
+      function updateConnectionBadge(status) {
+        const badge = document.getElementById("connection-badge");
+        const statusDot = document.getElementById("status-dot");
+        const statusText = document.getElementById("status-text");
+
+        switch (status) {
+          case "connected":
+            badge.className =
+              "status-badge dark:bg-green-500/10 dark:text-green-400 bg-green-100 text-green-700 border dark:border-green-500/20 border-green-200 hidden md:inline-flex";
+            badge.innerHTML =
+              '<span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Wokwi Live';
+            statusDot.className =
+              "w-2 h-2 bg-green-500 rounded-full animate-pulse";
+            statusText.innerText = "DRONE ONLINE";
+            break;
+          case "waiting":
+            badge.className =
+              "status-badge dark:bg-amber-500/10 dark:text-amber-400 bg-amber-100 text-amber-700 border dark:border-amber-500/20 border-amber-200 hidden md:inline-flex";
+            badge.innerHTML =
+              '<span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></span> Waiting...';
+            statusDot.className =
+              "w-2 h-2 bg-amber-400 rounded-full animate-pulse";
+            statusText.innerText = "WAITING FOR DRONE";
+            break;
+          case "offline":
+            badge.className =
+              "status-badge dark:bg-red-500/10 dark:text-red-400 bg-red-100 text-red-700 border dark:border-red-500/20 border-red-200 hidden md:inline-flex";
+            badge.innerHTML =
+              '<span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Offline';
+            statusDot.className = "w-2 h-2 bg-red-500 rounded-full";
+            statusText.innerText = "DRONE OFFLINE";
+            break;
+        }
+      }
+
+      // ──────────────────────────────────────────
+      // 🚀 INIT
+      // ──────────────────────────────────────────
+      document.addEventListener("DOMContentLoaded", () => {
+        document.documentElement.classList.add("dark");
+        setMode("minute");
+
+        addLog("INFO", "SeaPhonk Dashboard initialized");
+        addLog("INFO", "🌐 Mode: <b>Wokwi Live</b> (data dari simulasi ESP32)");
+        addLog("INFO", `📡 API: <b>${API_URL}</b>`);
+
+        // ── Load history data untuk chart awal ──
+        fetchHistoryData();
+
+        // ── Render chart kosong dulu ──
+        renderChart();
+
+        // ── Mulai polling data dari API setiap 5 detik ──
+        fetchLatestData(); // Fetch pertama kali segera
+        setInterval(fetchLatestData, 5000);
+
+        // Update uptime setiap detik
+        setInterval(() => {
+          const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+          const mins = Math.floor(elapsedSec / 60);
+          const secs = elapsedSec % 60;
+          document.getElementById("val-uptime").innerText =
+            mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        }, 1000);
+      });
+    </script>
+  </body>
+</html>
